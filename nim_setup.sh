@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# nim_setup.sh — idempotent setup for the Nim + naylib idle-clicker port.
-# Installs: Xcode CLI tools (naylib compiles raylib C source), Homebrew, Nim + nimble.
+# nim_setup.sh — idempotent setup for the Nim + treeform idle-clicker.
+# Installs: Xcode CLI tools (C compiler for OpenGL glue), Homebrew, Nim + nimble.
 # Re-runs are no-ops if everything is already present.
 
 set -euo pipefail
@@ -14,7 +14,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
-# 1. Xcode Command Line Tools (naylib bundles raylib C source and compiles it locally).
+# 1. Xcode Command Line Tools (needed for the C compiler used by OpenGL bindings).
 log "Xcode Command Line Tools"
 if xcode-select -p >/dev/null 2>&1; then
   skip "already installed at $(xcode-select -p)"
@@ -41,8 +41,7 @@ else
   brew install nim
 fi
 
-# naylib itself (and the raylib C sources it bundles) is fetched by `nimble install -d`
-# inside the project directory, which is the agent's job once `idle_clicker.nimble`
-# exists. No system-level raylib needed.
+# windy + boxy (and their transitive deps: pixie, vmath, bumpy, chroma, opengl)
+# are fetched by `nimble install --depsOnly` inside the project directory.
 
-ok "Nim toolchain ready. After writing idle_clicker.nimble, run: nimble install -d && nimble build -d:release"
+ok "Nim toolchain ready. Run: nimble install --depsOnly && nimble build -d:release"

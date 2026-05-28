@@ -1,33 +1,34 @@
-import raylib
+import boxy, vmath, bumpy, chroma
+import ./render
 
 const
-  FontTitle*:  int32 = 36
-  FontLarge*:  int32 = 28
-  FontMedium*: int32 = 20
-  FontSmall*:  int32 = 18
+  FontTitle*:  float32 = 36
+  FontLarge*:  float32 = 28
+  FontMedium*: float32 = 20
+  FontSmall*:  float32 = 18
 
-proc drawCenteredText*(text: string;
-                      containerX, containerW, y, fontSize: int32;
-                      color: Color) =
-  let w = measureText(text, fontSize)
-  let x = containerX + (containerW - w) div 2
-  drawText(text, x, y, fontSize, color)
+proc drawBorder(bxy: Boxy, rec: Rect, thick: float32, c: Color) =
+  bxy.drawRect(rect(rec.xy,                          vec2(rec.w, thick)), c)
+  bxy.drawRect(rect(rec.xy + vec2(0, rec.h - thick), vec2(rec.w, thick)), c)
+  bxy.drawRect(rect(rec.xy,                          vec2(thick, rec.h)), c)
+  bxy.drawRect(rect(rec.xy + vec2(rec.w - thick, 0), vec2(thick, rec.h)), c)
 
-proc drawUpgradeButton*(
-    rec: Rectangle;
+proc drawUpgradeButton*(ctx: RenderCtx, bxy: Boxy,
+    rec: Rect;
     title, levelLine, effectLine, costLine: string;
-    affordable: bool) =
-  let fill = if affordable: SkyBlue else: LightGray
-  drawRectangle(
-    int32(rec.x), int32(rec.y),
-    int32(rec.width), int32(rec.height),
-    fill)
-  drawRectangleLines(rec, 2.0'f32, DarkGray)
+    affordable: bool;
+    keyPrefix: string) =
+  let fill = if affordable: color(0.40, 0.75, 1.0, 1.0)
+             else:          color(0.78, 0.78, 0.78, 1.0)
+  bxy.drawRect(rec, fill)
+  drawBorder(bxy, rec, 2.0, color(0.31, 0.31, 0.31, 1.0))
 
-  let x = int32(rec.x) + 12'i32
-  var y = int32(rec.y) + 4'i32
-  drawText(title,      x, y, FontMedium, Black);    y += FontMedium + 4
-  drawText(levelLine,  x, y, FontSmall,  DarkGray); y += FontSmall  + 4
-  drawText(effectLine, x, y, FontSmall,  DarkGray); y += FontSmall  + 4
-  let costColor = if affordable: Black else: Red
-  drawText(costLine,   x, y, FontSmall,  costColor)
+  let black   = color(0, 0, 0, 1)
+  let dkgray  = color(0.31, 0.31, 0.31, 1)
+  let costClr = if affordable: black else: color(1, 0, 0, 1)
+  var y = rec.y + 4
+  let x = rec.x + 12
+  ctx.drawText(bxy, keyPrefix & "t", title,      FontMedium, black,  vec2(x, y)); y += FontMedium + 4
+  ctx.drawText(bxy, keyPrefix & "l", levelLine,  FontSmall,  dkgray, vec2(x, y)); y += FontSmall  + 4
+  ctx.drawText(bxy, keyPrefix & "e", effectLine, FontSmall,  dkgray, vec2(x, y)); y += FontSmall  + 4
+  ctx.drawText(bxy, keyPrefix & "c", costLine,   FontSmall,  costClr,vec2(x, y))
