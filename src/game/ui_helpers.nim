@@ -7,7 +7,7 @@ const
   FontMedium*: float32 = 20
   FontSmall*:  float32 = 18
 
-proc drawBorder(bxy: Boxy, rec: Rect, thick: float32, c: Color) =
+proc drawBorder*(bxy: Boxy, rec: Rect, thick: float32, c: Color) =
   bxy.drawRect(rect(rec.xy,                          vec2(rec.w, thick)), c)
   bxy.drawRect(rect(rec.xy + vec2(0, rec.h - thick), vec2(rec.w, thick)), c)
   bxy.drawRect(rect(rec.xy,                          vec2(thick, rec.h)), c)

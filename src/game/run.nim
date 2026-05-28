@@ -10,10 +10,9 @@ const
   CurrencyY = 90.0'f32
   PassiveY  = 140.0'f32
 
-  ClickCostInit:   int32 = 10
-  PassiveCostInit: int32 = 25
+  ClickCostInit:   int64 = 10
+  PassiveCostInit: int64 = 25
 
-  CoinFrames    = 8
   CoinFrameTime = 0.06'f64
 
 type
@@ -21,8 +20,8 @@ type
     currency:    int64
     clickPower:  int32
     passiveRate: int32
-    clickCost:   int32
-    passiveCost: int32
+    clickCost:   int64
+    passiveCost: int64
     accumulator: float64
     animPlaying: bool
     animFrame:   int32
@@ -32,10 +31,21 @@ type
 let ClickButton    = rect(vec2(80,  220), vec2(240, 240))
 let ClickUpgrade   = rect(vec2(400, 220), vec2(320, 110))
 let PassiveUpgrade = rect(vec2(400, 350), vec2(320, 110))
-let CoinDest       = rect(vec2(125, 232), vec2(150, 150))
+let CoinDest       = rect(vec2(ClickButton.x + (ClickButton.w - 150) / 2,
+                               ClickButton.y + 12), vec2(150, 150))
+let ClickLabelY    = CoinDest.y + CoinDest.h + 6
 
-func nextCost(c: int32): int32 =
+func nextCost(c: int64): int64 =
   (c * 3) div 2
+
+# Returns (uniform scale, letterbox offset) for the current window size.
+# Both draw and update must use this so the transforms stay in lockstep.
+proc worldScale(winSize: IVec2): tuple[s: float32, offset: Vec2] =
+  let sx = winSize.x.float32 / WindowW.float32
+  let sy = winSize.y.float32 / WindowH.float32
+  let s  = min(sx, sy)
+  let offset = (winSize.vec2 - vec2(float32(WindowW), float32(WindowH)) * s) / 2
+  (s, offset)
 
 proc initGame(bxy: Boxy): Game =
   result = Game(
@@ -59,30 +69,28 @@ proc update(g: var Game, dt: float32, window: Window) =
       if g.animFrame >= CoinFrames:
         g.animFrame = CoinFrames - 1
         g.animPlaying = false
-        g.currency += int64(g.clickPower)
         break
 
   if window.size.x > 0 and window.size.y > 0 and window.buttonPressed[MouseLeft]:
-    let sx = window.size.x.float32 / WindowW.float32
-    let sy = window.size.y.float32 / WindowH.float32
-    let mouse = vec2(window.mousePos.x.float32 / sx, window.mousePos.y.float32 / sy)
+    let (s, offset) = worldScale(window.size)
+    let mouse = (window.mousePos.vec2 - offset) / s
     if ClickButton.overlaps(mouse):
+      g.currency += int64(g.clickPower)
       g.animPlaying = true
       g.animFrame = 0
       g.animTimer = 0.0
-    elif ClickUpgrade.overlaps(mouse) and g.currency >= int64(g.clickCost):
-      g.currency -= int64(g.clickCost)
+    elif ClickUpgrade.overlaps(mouse) and g.currency >= g.clickCost:
+      g.currency -= g.clickCost
       g.clickPower += 1
       g.clickCost = nextCost(g.clickCost)
-    elif PassiveUpgrade.overlaps(mouse) and g.currency >= int64(g.passiveCost):
-      g.currency -= int64(g.passiveCost)
+    elif PassiveUpgrade.overlaps(mouse) and g.currency >= g.passiveCost:
+      g.currency -= g.passiveCost
       g.passiveRate += 1
       g.passiveCost = nextCost(g.passiveCost)
 
 proc draw(g: Game, bxy: Boxy, window: Window) =
   if window.size.x == 0 or window.size.y == 0: return
-  let sx = window.size.x.float32 / WindowW.float32
-  let sy = window.size.y.float32 / WindowH.float32
+  let (s, offset) = worldScale(window.size)
   let W = float32(WindowW)
   let H = float32(WindowH)
   let black   = color(0, 0, 0, 1)
@@ -92,8 +100,10 @@ proc draw(g: Game, bxy: Boxy, window: Window) =
   let dkgrn2  = color(0.0, 0.28, 0.13, 1.0)
 
   bxy.beginFrame(window.size)
+  # Fill letterbox bars (visible when aspect ratio differs from 4:3)
+  bxy.drawRect(rect(vec2(0, 0), window.size.vec2), black)
   bxy.saveTransform()
-  bxy.applyTransform(scale(vec2(sx, sy)))
+  bxy.applyTransform(translate(offset) * scale(vec2(s, s)))
 
   bxy.drawRect(rect(vec2(0, 0), vec2(W, H)), color(0.98, 0.98, 0.98, 1.0))
 
@@ -102,27 +112,22 @@ proc draw(g: Game, bxy: Boxy, window: Window) =
   g.ctx.drawCenteredText(bxy, "passive",  &"+{g.passiveRate}/sec",   FontMedium, dkgreen,0, W, PassiveY)
 
   bxy.drawRect(ClickButton, green)
-  let thick = 3.0'f32
-  bxy.drawRect(rect(ClickButton.xy,                                  vec2(ClickButton.w, thick)), dkgrn2)
-  bxy.drawRect(rect(ClickButton.xy + vec2(0, ClickButton.h - thick), vec2(ClickButton.w, thick)), dkgrn2)
-  bxy.drawRect(rect(ClickButton.xy,                                  vec2(thick, ClickButton.h)), dkgrn2)
-  bxy.drawRect(rect(ClickButton.xy + vec2(ClickButton.w - thick, 0), vec2(thick, ClickButton.h)), dkgrn2)
+  drawBorder(bxy, ClickButton, 3.0, dkgrn2)
 
   bxy.drawImage("coin" & $g.animFrame, rect = CoinDest)
 
-  let cx  = ClickButton.x
-  let cw  = ClickButton.w
-  let topY = 388.0'f32
-  g.ctx.drawCenteredText(bxy, "click_lbl", "CLICK",              FontTitle, black, cx, cw, topY)
-  g.ctx.drawCenteredText(bxy, "click_pwr", &"(+{g.clickPower})", FontLarge, black, cx, cw, topY + FontTitle)
+  let cx = ClickButton.x
+  let cw = ClickButton.w
+  g.ctx.drawCenteredText(bxy, "click_lbl", "CLICK",              FontTitle, black, cx, cw, ClickLabelY)
+  g.ctx.drawCenteredText(bxy, "click_pwr", &"(+{g.clickPower})", FontLarge, black, cx, cw, ClickLabelY + FontTitle)
 
   g.ctx.drawUpgradeButton(bxy, ClickUpgrade,
     "Click Power", &"Level: {g.clickPower}", "+1 per click", &"Cost: {g.clickCost}",
-    g.currency >= int64(g.clickCost), "cu_")
+    g.currency >= g.clickCost, "cu_")
 
   g.ctx.drawUpgradeButton(bxy, PassiveUpgrade,
     "Passive Income", &"Level: {g.passiveRate}", "+1 per second", &"Cost: {g.passiveCost}",
-    g.currency >= int64(g.passiveCost), "pu_")
+    g.currency >= g.passiveCost, "pu_")
 
   bxy.restoreTransform()
   bxy.endFrame()
@@ -133,7 +138,7 @@ proc run*(window: Window, bxy: Boxy) =
 
   window.onFrame = proc() =
     let now = epochTime()
-    let dt  = float32(now - prevTime)
+    let dt  = float32(min(now - prevTime, 0.1))  # clamp guards against pause/sleep spikes
     prevTime = now
     g.update(dt, window)
     g.draw(bxy, window)
