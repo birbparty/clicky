@@ -62,8 +62,10 @@ proc update(g: var Game, dt: float32, window: Window) =
         g.currency += int64(g.clickPower)
         break
 
-  if window.buttonPressed[MouseLeft]:
-    let mouse = window.mousePos.vec2
+  if window.size.x > 0 and window.size.y > 0 and window.buttonPressed[MouseLeft]:
+    let sx = window.size.x.float32 / WindowW.float32
+    let sy = window.size.y.float32 / WindowH.float32
+    let mouse = vec2(window.mousePos.x.float32 / sx, window.mousePos.y.float32 / sy)
     if ClickButton.overlaps(mouse):
       g.animPlaying = true
       g.animFrame = 0
@@ -77,7 +79,10 @@ proc update(g: var Game, dt: float32, window: Window) =
       g.passiveRate += 1
       g.passiveCost = nextCost(g.passiveCost)
 
-proc draw(g: Game, bxy: Boxy) =
+proc draw(g: Game, bxy: Boxy, window: Window) =
+  if window.size.x == 0 or window.size.y == 0: return
+  let sx = window.size.x.float32 / WindowW.float32
+  let sy = window.size.y.float32 / WindowH.float32
   let W = float32(WindowW)
   let H = float32(WindowH)
   let black   = color(0, 0, 0, 1)
@@ -86,8 +91,9 @@ proc draw(g: Game, bxy: Boxy) =
   let dkgreen = color(0.0, 0.46, 0.22, 1.0)
   let dkgrn2  = color(0.0, 0.28, 0.13, 1.0)
 
-  # Fixed logical size — NOT window.size (returns physical pixels on Retina)
-  bxy.beginFrame(ivec2(WindowW, WindowH))
+  bxy.beginFrame(window.size)
+  bxy.saveTransform()
+  bxy.applyTransform(scale(vec2(sx, sy)))
 
   bxy.drawRect(rect(vec2(0, 0), vec2(W, H)), color(0.98, 0.98, 0.98, 1.0))
 
@@ -118,6 +124,7 @@ proc draw(g: Game, bxy: Boxy) =
     "Passive Income", &"Level: {g.passiveRate}", "+1 per second", &"Cost: {g.passiveCost}",
     g.currency >= int64(g.passiveCost), "pu_")
 
+  bxy.restoreTransform()
   bxy.endFrame()
 
 proc run*(window: Window, bxy: Boxy) =
@@ -129,7 +136,7 @@ proc run*(window: Window, bxy: Boxy) =
     let dt  = float32(now - prevTime)
     prevTime = now
     g.update(dt, window)
-    g.draw(bxy)
+    g.draw(bxy, window)
     window.swapBuffers()
 
   while not window.closeRequested:
